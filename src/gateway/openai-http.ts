@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { ImageContent } from "../agents/command/types.js";
+import type { AgentStreamParams, ImageContent } from "../agents/command/types.js";
 import { normalizeUsage, toOpenAiChatCompletionsUsage } from "../agents/usage.js";
 import { createDefaultDeps } from "../cli/deps.js";
 import { agentCommandFromIngress } from "../commands/agent.js";
@@ -62,6 +62,10 @@ type OpenAiChatCompletionRequest = {
   stream_options?: unknown;
   messages?: unknown;
   user?: unknown;
+  metadata?: unknown;
+  tags?: unknown;
+  prompt_cache_key?: unknown;
+  prompt_cache_retention?: unknown;
 };
 
 const DEFAULT_OPENAI_CHAT_COMPLETIONS_BODY_BYTES = 20 * 1024 * 1024;
@@ -120,6 +124,7 @@ function buildAgentCommandInput(params: {
   messageChannel: string;
   senderIsOwner: boolean;
   abortSignal?: AbortSignal;
+  streamParams?: AgentStreamParams;
 }) {
   return {
     message: params.prompt.message,
@@ -134,6 +139,7 @@ function buildAgentCommandInput(params: {
     senderIsOwner: params.senderIsOwner,
     allowModelOverride: true as const,
     abortSignal: params.abortSignal,
+    streamParams: params.streamParams,
   };
 }
 
@@ -496,6 +502,69 @@ function resolveIncludeUsageForStreaming(payload: OpenAiChatCompletionRequest): 
   return (streamOptions as { include_usage?: unknown }).include_usage === true;
 }
 
+function isMetadataRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function isSafeMetadataKey(key: string): boolean {
+  return key !== "__proto__" && key !== "prototype" && key !== "constructor";
+}
+
+function normalizeLiteLlmMetadata(value: unknown): Record<string, string> | undefined {
+  if (!isMetadataRecord(value)) {
+    return undefined;
+  }
+  const metadata: Record<string, string> = {};
+  for (const [key, entry] of Object.entries(value)) {
+    if (!isSafeMetadataKey(key)) {
+      continue;
+    }
+    if (typeof entry === "string" && entry.trim()) {
+      metadata[key] = entry.trim();
+      continue;
+    }
+    if (typeof entry === "number" && Number.isFinite(entry)) {
+      metadata[key] = String(entry);
+      continue;
+    }
+    if (typeof entry === "boolean") {
+      metadata[key] = String(entry);
+    }
+  }
+  return Object.keys(metadata).length > 0 ? metadata : undefined;
+}
+
+function normalizeLiteLlmTags(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+  const tags = value
+    .filter((entry): entry is string => typeof entry === "string")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  return tags.length > 0 ? tags : undefined;
+}
+
+function normalizeNonEmptyWireString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function resolveLiteLlmStreamParams(
+  payload: OpenAiChatCompletionRequest,
+): AgentStreamParams | undefined {
+  const metadata = normalizeLiteLlmMetadata(payload.metadata);
+  const tags = normalizeLiteLlmTags(payload.tags);
+  const promptCacheKey = normalizeNonEmptyWireString(payload.prompt_cache_key);
+  const promptCacheRetention = normalizeNonEmptyWireString(payload.prompt_cache_retention);
+  const streamParams: AgentStreamParams = {
+    ...(metadata ? { litellmMetadata: metadata } : {}),
+    ...(tags ? { litellmTags: tags } : {}),
+    ...(promptCacheKey ? { litellmPromptCacheKey: promptCacheKey } : {}),
+    ...(promptCacheRetention ? { litellmPromptCacheRetention: promptCacheRetention } : {}),
+  };
+  return Object.keys(streamParams).length > 0 ? streamParams : undefined;
+}
+
 export async function handleOpenAiHttpRequest(
   req: IncomingMessage,
   res: ServerResponse,
@@ -590,6 +659,7 @@ export async function handleOpenAiHttpRequest(
     messageChannel,
     abortSignal: abortController.signal,
     senderIsOwner,
+    streamParams: resolveLiteLlmStreamParams(payload),
   });
 
   if (!stream) {

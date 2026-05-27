@@ -4,6 +4,14 @@ export type AgentStreamParams = {
   maxTokens?: number;
   /** Provider fast-mode override (best-effort). */
   fastMode?: boolean;
+  /** LiteLLM provider metadata forwarded to spend logs. */
+  litellmMetadata?: Record<string, unknown>;
+  /** LiteLLM provider request tags forwarded to spend logs. */
+  litellmTags?: string[];
+  /** LiteLLM/OpenAI-compatible prompt cache namespace. */
+  litellmPromptCacheKey?: string;
+  /** LiteLLM/OpenAI-compatible prompt cache retention, e.g. "24h". */
+  litellmPromptCacheRetention?: string;
 };
 
 // Simplified tool definition for client-provided tools (OpenResponses hosted tools)

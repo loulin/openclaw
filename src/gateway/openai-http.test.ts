@@ -132,6 +132,12 @@ describe("OpenAI-compatible HTTP API (e2e)", () => {
             extraSystemPrompt?: string;
             images?: Array<{ type: string; data: string; mimeType: string }>;
             senderIsOwner?: boolean;
+            streamParams?: {
+              litellmMetadata?: Record<string, unknown>;
+              litellmTags?: string[];
+              litellmPromptCacheKey?: string;
+              litellmPromptCacheRetention?: string;
+            };
           }
         | undefined;
     const getFirstAgentMessage = () => getFirstAgentCall()?.message ?? "";
@@ -359,6 +365,48 @@ describe("OpenAI-compatible HTTP API (e2e)", () => {
 
         const opts = (agentCommand.mock.calls[0] as unknown[] | undefined)?.[0];
         expect((opts as { message?: string } | undefined)?.message).toBe("hello\nworld");
+        await res.text();
+      }
+
+      {
+        mockAgentOnce([{ text: "hello" }]);
+        const res = await postChatCompletions(port, {
+          model: "openclaw",
+          messages: [{ role: "user", content: "hi" }],
+          metadata: {
+            organization_id: "91011",
+            project_id: "project-1",
+            session_id: "session-1",
+            run_id: "run-1",
+            billing_tier: "standard",
+            billing_correlation_id: "11111111-1111-4111-8111-111111111111",
+            prompt_cache_key: "gplusbot:91011:project-1:session-1:v1",
+          },
+          tags: ["org:91011", "user:1001", "tier:standard"],
+          prompt_cache_key: "gplusbot:91011:project-1:session-1:v1",
+          prompt_cache_retention: "24h",
+        });
+        expect(res.status).toBe(200);
+
+        const firstCall = getFirstAgentCall();
+        expect(firstCall?.streamParams?.litellmMetadata).toMatchObject({
+          organization_id: "91011",
+          project_id: "project-1",
+          session_id: "session-1",
+          run_id: "run-1",
+          billing_tier: "standard",
+          billing_correlation_id: "11111111-1111-4111-8111-111111111111",
+          prompt_cache_key: "gplusbot:91011:project-1:session-1:v1",
+        });
+        expect(firstCall?.streamParams?.litellmTags).toEqual([
+          "org:91011",
+          "user:1001",
+          "tier:standard",
+        ]);
+        expect(firstCall?.streamParams?.litellmPromptCacheKey).toBe(
+          "gplusbot:91011:project-1:session-1:v1",
+        );
+        expect(firstCall?.streamParams?.litellmPromptCacheRetention).toBe("24h");
         await res.text();
       }
 

@@ -110,6 +110,10 @@ type CacheRetentionStreamOptions = Partial<SimpleStreamOptions> & {
   cacheRetention?: "none" | "short" | "long";
   cachedContent?: string;
   openaiWsWarmup?: boolean;
+  litellmMetadata?: Record<string, unknown>;
+  litellmTags?: string[];
+  litellmPromptCacheKey?: string;
+  litellmPromptCacheRetention?: string;
 };
 type SupportedTransport = Exclude<CacheRetentionStreamOptions["transport"], undefined>;
 
@@ -268,6 +272,34 @@ function createStreamFnWithExtraParams(
         : undefined;
   if (typeof cachedContent === "string" && cachedContent.trim()) {
     streamParams.cachedContent = cachedContent.trim();
+  }
+  if (
+    extraParams.litellmMetadata &&
+    typeof extraParams.litellmMetadata === "object" &&
+    !Array.isArray(extraParams.litellmMetadata)
+  ) {
+    streamParams.litellmMetadata = extraParams.litellmMetadata as Record<string, unknown>;
+  }
+  if (Array.isArray(extraParams.litellmTags)) {
+    const tags = extraParams.litellmTags
+      .filter((entry): entry is string => typeof entry === "string")
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+    if (tags.length > 0) {
+      streamParams.litellmTags = tags;
+    }
+  }
+  if (
+    typeof extraParams.litellmPromptCacheKey === "string" &&
+    extraParams.litellmPromptCacheKey.trim()
+  ) {
+    streamParams.litellmPromptCacheKey = extraParams.litellmPromptCacheKey.trim();
+  }
+  if (
+    typeof extraParams.litellmPromptCacheRetention === "string" &&
+    extraParams.litellmPromptCacheRetention.trim()
+  ) {
+    streamParams.litellmPromptCacheRetention = extraParams.litellmPromptCacheRetention.trim();
   }
   const initialCacheRetention = resolveCacheRetention(
     extraParams,

@@ -54,6 +54,10 @@ type BaseStreamOptions = {
   sessionId?: string;
   onPayload?: (payload: unknown, model: Model<Api>) => unknown;
   headers?: Record<string, string>;
+  litellmMetadata?: Record<string, unknown>;
+  litellmTags?: string[];
+  litellmPromptCacheKey?: string;
+  litellmPromptCacheRetention?: string;
 };
 
 type OpenAIResponsesOptions = BaseStreamOptions & {
@@ -742,6 +746,41 @@ function getPromptCacheRetention(
   return baseUrl?.includes("api.openai.com") ? "24h" : undefined;
 }
 
+function normalizeLiteLlmMetadata(
+  value: Record<string, unknown> | undefined,
+): Record<string, string> | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+  const metadata: Record<string, string> = {};
+  for (const [key, entry] of Object.entries(value)) {
+    if (key === "__proto__" || key === "prototype" || key === "constructor") {
+      continue;
+    }
+    if (typeof entry === "string" && entry.trim()) {
+      metadata[key] = entry.trim();
+      continue;
+    }
+    if (typeof entry === "number" && Number.isFinite(entry)) {
+      metadata[key] = String(entry);
+      continue;
+    }
+    if (typeof entry === "boolean") {
+      metadata[key] = String(entry);
+    }
+  }
+  return Object.keys(metadata).length > 0 ? metadata : undefined;
+}
+
+function normalizeLiteLlmTags(value: string[] | undefined): string[] | undefined {
+  const tags = value?.map((entry) => entry.trim()).filter(Boolean) ?? [];
+  return tags.length > 0 ? tags : undefined;
+}
+
+function normalizeNonEmptyString(value: string | undefined): string | undefined {
+  return value?.trim() || undefined;
+}
+
 function resolveOpenAIReasoningEffort(
   options: OpenAIResponsesOptions | undefined,
 ): Exclude<OpenAIApiReasoningEffort, "none"> {
@@ -769,13 +808,20 @@ export function buildOpenAIResponsesParams(
   const payloadPolicy = resolveOpenAIResponsesPayloadPolicy(model, {
     storeMode: "disable",
   });
+  const litellmMetadata = normalizeLiteLlmMetadata(options?.litellmMetadata);
+  const litellmTags = normalizeLiteLlmTags(options?.litellmTags);
+  const promptCacheKey = normalizeNonEmptyString(options?.litellmPromptCacheKey);
+  const promptCacheRetention = normalizeNonEmptyString(options?.litellmPromptCacheRetention);
   const params: OpenAIResponsesRequestParams = {
     model: model.id,
     input: messages,
     stream: true,
-    prompt_cache_key: cacheRetention === "none" ? undefined : options?.sessionId,
-    prompt_cache_retention: getPromptCacheRetention(model.baseUrl, cacheRetention),
-    ...(metadata ? { metadata } : {}),
+    prompt_cache_key:
+      promptCacheKey ?? (cacheRetention === "none" ? undefined : options?.sessionId),
+    prompt_cache_retention:
+      promptCacheRetention ?? getPromptCacheRetention(model.baseUrl, cacheRetention),
+    ...(metadata || litellmMetadata ? { metadata: { ...metadata, ...litellmMetadata } } : {}),
+    ...(litellmTags ? { tags: litellmTags } : {}),
   };
   if (options?.maxTokens) {
     params.max_output_tokens = options.maxTokens;
@@ -1238,8 +1284,9 @@ type OpenAIResponsesRequestParams = {
   input: ResponseInput;
   stream: true;
   prompt_cache_key?: string;
-  prompt_cache_retention?: "24h";
+  prompt_cache_retention?: string;
   metadata?: Record<string, string>;
+  tags?: string[];
   store?: boolean;
   max_output_tokens?: number;
   temperature?: number;
@@ -1327,6 +1374,22 @@ export function buildOpenAICompletionsParams(
   }
   if (options?.temperature !== undefined) {
     params.temperature = options.temperature;
+  }
+  const litellmMetadata = normalizeLiteLlmMetadata(options?.litellmMetadata);
+  if (litellmMetadata) {
+    params.metadata = litellmMetadata;
+  }
+  const litellmTags = normalizeLiteLlmTags(options?.litellmTags);
+  if (litellmTags) {
+    params.tags = litellmTags;
+  }
+  const promptCacheKey = normalizeNonEmptyString(options?.litellmPromptCacheKey);
+  if (promptCacheKey) {
+    params.prompt_cache_key = promptCacheKey;
+  }
+  const promptCacheRetention = normalizeNonEmptyString(options?.litellmPromptCacheRetention);
+  if (promptCacheRetention) {
+    params.prompt_cache_retention = promptCacheRetention;
   }
   if (context.tools) {
     params.tools = convertTools(context.tools, compat, model);

@@ -1088,6 +1088,118 @@ describe("openai transport stream", () => {
     expect(params.reasoning_effort).toBe("medium");
   });
 
+  it("adds LiteLLM metadata, tags, and prompt cache fields to OpenAI completions payloads", () => {
+    const params = buildOpenAICompletionsParams(
+      {
+        id: "standard",
+        name: "Standard",
+        api: "openai-completions",
+        provider: "litellm",
+        baseUrl: "http://litellm.gplus-bot-system.svc.cluster.local:4000",
+        reasoning: true,
+        input: ["text"],
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+        contextWindow: 64000,
+        maxTokens: 4096,
+      } satisfies Model<"openai-completions">,
+      {
+        systemPrompt: "system",
+        messages: [],
+        tools: [],
+      } as never,
+      {
+        litellmMetadata: {
+          organization_id: "91011",
+          user_id: "1001",
+          project_id: "project-1",
+          session_id: "session-1",
+          run_id: "run-1",
+          billing_tier: "standard",
+          billing_correlation_id: "11111111-1111-4111-8111-111111111111",
+          prompt_cache_key: "gplusbot:91011:project-1:session-1:v1",
+        },
+        litellmTags: ["org:91011", "user:1001", "tier:standard"],
+        litellmPromptCacheKey: "gplusbot:91011:project-1:session-1:v1",
+        litellmPromptCacheRetention: "24h",
+      } as never,
+    ) as {
+      metadata?: Record<string, string>;
+      tags?: string[];
+      prompt_cache_key?: string;
+      prompt_cache_retention?: string;
+    };
+
+    expect(params.metadata).toMatchObject({
+      organization_id: "91011",
+      user_id: "1001",
+      project_id: "project-1",
+      session_id: "session-1",
+      run_id: "run-1",
+      billing_tier: "standard",
+      billing_correlation_id: "11111111-1111-4111-8111-111111111111",
+      prompt_cache_key: "gplusbot:91011:project-1:session-1:v1",
+    });
+    expect(params.tags).toEqual(["org:91011", "user:1001", "tier:standard"]);
+    expect(params.prompt_cache_key).toBe("gplusbot:91011:project-1:session-1:v1");
+    expect(params.prompt_cache_retention).toBe("24h");
+  });
+
+  it("adds LiteLLM metadata, tags, and prompt cache fields to OpenAI Responses payloads", () => {
+    const params = buildOpenAIResponsesParams(
+      {
+        id: "standard",
+        name: "Standard",
+        api: "openai-responses",
+        provider: "litellm",
+        baseUrl: "http://litellm.gplus-bot-system.svc.cluster.local:4000",
+        reasoning: true,
+        input: ["text"],
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+        contextWindow: 64000,
+        maxTokens: 4096,
+      } satisfies Model<"openai-responses">,
+      {
+        systemPrompt: "system",
+        messages: [],
+        tools: [],
+      } as never,
+      {
+        litellmMetadata: {
+          organization_id: "91011",
+          user_id: "1001",
+          project_id: "project-1",
+          session_id: "session-1",
+          run_id: "run-1",
+          billing_tier: "standard",
+          billing_correlation_id: "11111111-1111-4111-8111-111111111111",
+          prompt_cache_key: "gplusbot:91011:project-1:session-1:v1",
+        },
+        litellmTags: ["org:91011", "user:1001", "tier:standard"],
+        litellmPromptCacheKey: "gplusbot:91011:project-1:session-1:v1",
+        litellmPromptCacheRetention: "24h",
+      } as never,
+    ) as {
+      metadata?: Record<string, string>;
+      tags?: string[];
+      prompt_cache_key?: string;
+      prompt_cache_retention?: string;
+    };
+
+    expect(params.metadata).toMatchObject({
+      organization_id: "91011",
+      user_id: "1001",
+      project_id: "project-1",
+      session_id: "session-1",
+      run_id: "run-1",
+      billing_tier: "standard",
+      billing_correlation_id: "11111111-1111-4111-8111-111111111111",
+      prompt_cache_key: "gplusbot:91011:project-1:session-1:v1",
+    });
+    expect(params.tags).toEqual(["org:91011", "user:1001", "tier:standard"]);
+    expect(params.prompt_cache_key).toBe("gplusbot:91011:project-1:session-1:v1");
+    expect(params.prompt_cache_retention).toBe("24h");
+  });
+
   it("maps minimal shared reasoning to low for OpenAI completions", () => {
     const params = buildOpenAICompletionsParams(
       {
