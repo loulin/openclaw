@@ -16,6 +16,7 @@ ARG OPENCLAW_EXTENSIONS=""
 ARG OPENCLAW_VARIANT=default
 ARG OPENCLAW_BUNDLED_PLUGIN_DIR=extensions
 ARG OPENCLAW_DOCKER_APT_UPGRADE=1
+ARG NPM_REGISTRY=https://registry.npmjs.org/
 ARG OPENCLAW_NODE_BOOKWORM_IMAGE="node:24-bookworm@sha256:3a09aa6354567619221ef6c45a5051b671f953f0a1924d1f819ffb236e520e6b"
 ARG OPENCLAW_NODE_BOOKWORM_DIGEST="sha256:3a09aa6354567619221ef6c45a5051b671f953f0a1924d1f819ffb236e520e6b"
 ARG OPENCLAW_NODE_BOOKWORM_SLIM_IMAGE="node:24-bookworm-slim@sha256:e8e2e91b1378f83c5b2dd15f0247f34110e2fe895f6ca7719dbb780f929368eb"
@@ -42,6 +43,10 @@ RUN mkdir -p /out && \
 # ── Stage 2: Build ──────────────────────────────────────────────
 FROM ${OPENCLAW_NODE_BOOKWORM_IMAGE} AS build
 ARG OPENCLAW_BUNDLED_PLUGIN_DIR
+ARG NPM_REGISTRY
+ENV npm_config_registry=${NPM_REGISTRY}
+ENV PNPM_CONFIG_REGISTRY=${NPM_REGISTRY}
+ENV COREPACK_NPM_REGISTRY=${NPM_REGISTRY}
 
 # Install Bun (required for build scripts). Retry the whole bootstrap flow to
 # tolerate transient 5xx failures from bun.sh/GitHub during CI image builds.
@@ -135,6 +140,10 @@ FROM base-${OPENCLAW_VARIANT}
 ARG OPENCLAW_VARIANT
 ARG OPENCLAW_BUNDLED_PLUGIN_DIR
 ARG OPENCLAW_DOCKER_APT_UPGRADE
+ARG NPM_REGISTRY
+ENV npm_config_registry=${NPM_REGISTRY}
+ENV PNPM_CONFIG_REGISTRY=${NPM_REGISTRY}
+ENV COREPACK_NPM_REGISTRY=${NPM_REGISTRY}
 
 # OCI base-image metadata for downstream image consumers.
 # If you change these annotations, also update:

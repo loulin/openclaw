@@ -1,6 +1,11 @@
 # syntax=docker/dockerfile:1.7
 
+ARG NPM_REGISTRY=https://registry.npmjs.org/
 FROM node:24-bookworm@sha256:3a09aa6354567619221ef6c45a5051b671f953f0a1924d1f819ffb236e520e6b
+ARG NPM_REGISTRY
+ENV npm_config_registry=${NPM_REGISTRY}
+ENV PNPM_CONFIG_REGISTRY=${NPM_REGISTRY}
+ENV COREPACK_NPM_REGISTRY=${NPM_REGISTRY}
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends ca-certificates git \
